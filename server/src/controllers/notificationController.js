@@ -1,43 +1,32 @@
-const notificationService = require('../services/notificationService');
+const Notification = require('../models/Notification');
 
-const getNotifications = async (req, res, next) => {
+exports.list = async (req, res) => {
   try {
-    const notifications = await notificationService.getUserNotifications(req.user._id);
-    res.status(200).json({
-      success: true,
-      data: notifications
-    });
+    const notifications = await Notification.find({ owner: req.userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('workflowId', 'name')
+      .populate('executionId', 'status');
+    res.json(notifications);
   } catch (err) {
-    next(err);
+    res.status(500).json({ error: err.message });
   }
 };
 
-const markRead = async (req, res, next) => {
+exports.markRead = async (req, res) => {
   try {
-    const notification = await notificationService.markAsRead(req.params.id, req.user._id);
-    res.status(200).json({
-      success: true,
-      data: notification
-    });
+    await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
+    res.json({ message: 'Notification marked as read' });
   } catch (err) {
-    next(err);
+    res.status(500).json({ error: err.message });
   }
 };
 
-const markAllRead = async (req, res, next) => {
+exports.markAllRead = async (req, res) => {
   try {
-    const result = await notificationService.markAllAsRead(req.user._id);
-    res.status(200).json({
-      success: true,
-      data: result
-    });
+    await Notification.updateMany({ owner: req.userId, isRead: false }, { isRead: true });
+    res.json({ message: 'All notifications marked as read' });
   } catch (err) {
-    next(err);
+    res.status(500).json({ error: err.message });
   }
-};
-
-module.exports = {
-  getNotifications,
-  markRead,
-  markAllRead
 };

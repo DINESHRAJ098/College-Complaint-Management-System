@@ -3,79 +3,23 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      trim: true
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
-      trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: 6,
-      select: false
-    },
-    role: {
-      type: String,
-      enum: ['student', 'officer', 'admin', 'committee'],
-      default: 'student'
-    },
-    department: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Department',
-      default: null
-    },
-    departmentName: {
-      type: String,
-      default: ''
-    },
-    studentId: {
-      type: String,
-      trim: true,
-      default: ''
-    },
-    batch: {
-      type: String,
-      default: '2023-2027'
-    },
-    phone: {
-      type: String,
-      default: ''
-    },
-    avatar: {
-      type: String,
-      default: ''
-    },
-    isActive: {
-      type: Boolean,
-      default: true
-    },
-    lastLogin: {
-      type: Date,
-      default: null
-    }
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true, select: false },
+    role: { type: String, enum: ['admin', 'operator'], default: 'operator' },
+    lastLogin: { type: Date },
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 module.exports = mongoose.model('User', userSchema);

@@ -2,55 +2,41 @@ import { io } from 'socket.io-client';
 
 let socket = null;
 
-export const getSocket = () => {
-  if (typeof window === 'undefined') return null;
+export const connectSocket = (userId) => {
+  if (socket?.connected) return socket;
 
-  if (!socket) {
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
-    socket = io(socketUrl, {
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      transports: ['websocket', 'polling']
-    });
+  socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:5000', {
+    transports: ['websocket', 'polling'],
+    autoConnect: true,
+  });
 
-    socket.on('connect', () => {
-      console.log('⚡ Connected to Real-time Grievance Socket:', socket.id);
-    });
+  socket.on('connect', () => {
+    console.log('Socket connected:', socket.id);
+    if (userId) {
+      socket.emit('subscribe:notifications', userId);
+    }
+  });
 
-    socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from Real-time Socket');
-    });
-  }
+  socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', reason);
+  });
 
   return socket;
 };
 
-export const joinComplaintRoom = (complaintId) => {
-  const s = getSocket();
-  if (s && complaintId) {
-    s.emit('join_complaint', complaintId);
-  }
+export const getSocket = () => socket;
+
+export const subscribeExecution = (executionId) => {
+  if (socket) socket.emit('subscribe:execution', executionId);
 };
 
-export const leaveComplaintRoom = (complaintId) => {
-  const s = getSocket();
-  if (s && complaintId) {
-    s.emit('leave_complaint', complaintId);
-  }
+export const unsubscribeExecution = (executionId) => {
+  if (socket) socket.emit('unsubscribe:execution', executionId);
 };
 
-export const joinUserRoom = (userId) => {
-  const s = getSocket();
-  if (s && userId) {
-    s.emit('join_user', userId);
-  }
-};
-
-export const joinRoleRoom = (role) => {
-  const s = getSocket();
-  if (s && role) {
-    s.emit('join_role', role);
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
   }
 };

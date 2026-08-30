@@ -1,119 +1,46 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/env');
+const env = require('../config/env');
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN
-  });
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
 };
 
-const registerUser = async (userData) => {
-  const { name, email, password, role, department, studentId, batch, phone } = userData;
+const register = async ({ name, email, password }) => {
+  const existingUser = await User.findOne({ email });
+  if (existingUser) throw new Error('Email already registered');
 
-  const userExists = await User.findOne({ email: email.toLowerCase() });
-  if (userExists) {
-    const error = new Error('User already exists with this email address');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const user = await User.create({
-    name,
-    email: email.toLowerCase(),
-    password,
-    role: role || 'student',
-    department: department || null,
-    studentId: studentId || '',
-    batch: batch || '2023-2027',
-    phone: phone || '',
-    lastLogin: new Date()
-  });
-
+  const user = await User.create({ name, email, password });
   const token = generateToken(user._id);
 
   return {
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      department: user.department,
-      studentId: user.studentId,
-      batch: user.batch,
-      phone: user.phone,
-      avatar: user.avatar
-    },
-    token
+    token,
+    user: { id: user._id, name: user.name, email: user.email, role: user.role },
   };
 };
 
-const loginUser = async (email, password) => {
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+const login = async ({ email, password }) => {
+  const user = await User.findOne({ email }).select('+password');
+  if (!user) throw new Error('Invalid email or password');
 
-  if (!user) {
-    const error = new Error('Invalid email or password');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const isMatch = await user.matchPassword(password);
-  if (!isMatch) {
-    const error = new Error('Invalid email or password');
-    error.statusCode = 401;
-    throw error;
-  }
+  const isMatch = await user.comparePassword(password);
+  if (!isMatch) throw new Error('Invalid email or password');
 
   user.lastLogin = new Date();
-  await user.save({ validateBeforeSave: false });
+  await user.save();
 
   const token = generateToken(user._id);
 
   return {
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      department: user.department,
-      departmentName: user.departmentName,
-      studentId: user.studentId,
-      batch: user.batch,
-      phone: user.phone,
-      avatar: user.avatar,
-      lastLogin: user.lastLogin
-    },
-    token
+    token,
+    user: { id: user._id, name: user.name, email: user.email, role: user.role },
   };
 };
 
-const getMe = async (userId) => {
-  const user = await User.findById(userId).populate('department', 'name code location color icon');
-  if (!user) {
-    const error = new Error('User not found');
-    error.statusCode = 404;
-    throw error;
-  }
-  return user;
+const getProfile = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+  return { id: user._id, name: user.name, email: user.email, role: user.role, lastLogin: user.lastLogin };
 };
 
-const updateProfile = async (userId, updateData) => {
-  const allowedFields = ['name', 'phone', 'batch', 'avatar'];
-  const sanitized = {};
-  allowedFields.forEach((field) => {
-    if (updateData[field] !== undefined) sanitized[field] = updateData[field];
-  });
-
-  const user = await User.findByIdAndUpdate(userId, sanitized, {
-    new: true,
-    runValidators: true
-  });
-  return user;
-};
-
-module.exports = {
-  registerUser,
-  loginUser,
-  getMe,
-  updateProfile
-};
+module.exports = { register, login, getProfile, generateToken };

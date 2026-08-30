@@ -1,27 +1,25 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
-  timeout: 15000,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to attach JWT token
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const authStorage = localStorage.getItem('campus_resolve_auth');
-      if (authStorage) {
+      const stored = localStorage.getItem('agentflow-auth');
+      if (stored) {
         try {
-          const parsed = JSON.parse(authStorage);
-          if (parsed.state?.token) {
-            config.headers.Authorization = `Bearer ${parsed.state.token}`;
+          const { state } = JSON.parse(stored);
+          if (state?.token) {
+            config.headers.Authorization = `Bearer ${state.token}`;
           }
-        } catch (e) {
-          console.error('Error reading auth token from storage:', e);
-        }
+        } catch {}
       }
     }
     return config;
@@ -29,18 +27,15 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle auth expiration
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      const isAuthPage = window.location.pathname === '/login' || window.location.pathname === '/register';
-      if (!isAuthPage) {
-        localStorage.removeItem('campus_resolve_auth');
-        window.location.href = '/login?expired=1';
-      }
+      localStorage.removeItem('agentflow-auth');
+      window.location.href = '/login';
     }
-    return Promise.reject(error.response?.data || error);
+    return Promise.reject(error);
   }
 );
 

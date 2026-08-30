@@ -1,67 +1,30 @@
 const authService = require('../services/authService');
 
-const register = async (req, res, next) => {
+exports.register = async (req, res, next) => {
   try {
-    const result = await authService.registerUser(req.body);
-    res.status(201).json({
-      success: true,
-      message: 'Registration successful',
-      data: result
-    });
+    const { name, email, password } = req.body;
+    const result = await authService.register({ name, email, password });
+    res.status(201).json(result);
   } catch (err) {
-    next(err);
+    res.status(400).json({ error: err.message });
   }
 };
 
-const login = async (req, res, next) => {
+exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password'
-      });
-    }
-
-    const result = await authService.loginUser(email, password);
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: result
-    });
+    const result = await authService.login({ email, password });
+    res.json(result);
   } catch (err) {
-    next(err);
+    res.status(401).json({ error: err.message });
   }
 };
 
-const getMe = async (req, res, next) => {
+exports.me = async (req, res, next) => {
   try {
-    const user = await authService.getMe(req.user._id);
-    res.status(200).json({
-      success: true,
-      data: user
-    });
+    const user = await authService.getProfile(req.userId);
+    res.json(user);
   } catch (err) {
-    next(err);
+    res.status(404).json({ error: err.message });
   }
-};
-
-const updateProfile = async (req, res, next) => {
-  try {
-    const user = await authService.updateProfile(req.user._id, req.body);
-    res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully',
-      data: user
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-module.exports = {
-  register,
-  login,
-  getMe,
-  updateProfile
 };

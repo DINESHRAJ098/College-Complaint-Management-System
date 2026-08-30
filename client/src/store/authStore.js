@@ -1,104 +1,80 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../services/api';
-import { joinUserRoom, joinRoleRoom } from '../services/socket';
 
-export const useAuthStore = create(
+const useAuthStore = create(
   persist(
     (set, get) => ({
       user: null,
       token: null,
-      isAuthenticated: false,
       isLoading: false,
       error: null,
 
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          const res = await api.post('/auth/login', { email, password });
-          const { user, token } = res.data;
-          set({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null
-          });
-
-          // Join socket rooms
-          if (user?.id) joinUserRoom(user.id);
-          if (user?.role) joinRoleRoom(user.role);
-
-          return { success: true, user };
+          const { data } = await api.post('/auth/login', { email, password });
+          api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+          set({ user: data.user, token: data.token, isLoading: false });
+          return data;
         } catch (err) {
-          set({
-            isLoading: false,
-            error: err.message || 'Login failed. Check your credentials.'
-          });
-          return { success: false, error: err.message };
+          const message = err.response?.data?.error || 'Login failed';
+          set({ error: message, isLoading: false });
+          throw new Error(message);
         }
       },
 
-      register: async (userData) => {
+      register: async (name, email, password) => {
         set({ isLoading: true, error: null });
         try {
-          const res = await api.post('/auth/register', userData);
-          const { user, token } = res.data;
-          set({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null
-          });
-
-          if (user?.id) joinUserRoom(user.id);
-          if (user?.role) joinRoleRoom(user.role);
-
-          return { success: true, user };
+          const { data } = await api.post('/auth/register', { name, email, password });
+          api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+          set({ user: data.user, token: data.token, isLoading: false });
+          return data;
         } catch (err) {
-          set({
-            isLoading: false,
-            error: err.message || 'Registration failed.'
-          });
-          return { success: false, error: err.message };
+          const message = err.response?.data?.error || 'Registration failed';
+          set({ error: message, isLoading: false });
+          throw new Error(message);
+        }
+      },
+
+      fetchProfile: async () => {
+        const token = get().token;
+        if (!token) return;
+        try {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          const { data } = await api.get('/auth/me');
+          set({ user: data });
+        } catch {
+          set({ user: null, token: null });
         }
       },
 
       logout: () => {
-        set({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          error: null
-        });
+        delete api.defaults.headers.common['Authorization'];
+        set({ user: null, token: null });
       },
 
-      fetchMe: async () => {
-        if (!get().token) return;
-        try {
-          const res = await api.get('/auth/me');
-          if (res.data) {
-            set({ user: res.data });
-          }
-        } catch (err) {
-          console.warn('Failed to refresh user profile');
-        }
-      },
-
-      updateUser: (updatedData) => {
-        set((state) => ({
-          user: { ...state.user, ...updatedData }
-        }));
-      }
+      clearError: () => set({ error: null }),
     }),
     {
-      name: 'campus_resolve_auth',
-      partialize: (state) => ({
-        user: state.user,
-        token: state.token,
-        isAuthenticated: state.isAuthenticated
-      })
+      name: 'agentflow-auth',
+      partialize: (state) => ({ token: state.token, user: state.user }),
     }
   )
 );
+
+// Initialize API token from stored state
+if (typeof window !== 'undefined') {
+  const stored = localStorage.getItem('agentflow-auth');
+  if (stored) {
+    try {
+      const { state } = JSON.parse(stored);
+      if (state?.token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+      }
+    } catch {}
+  }
+}
+
+export default useAuthStore;
